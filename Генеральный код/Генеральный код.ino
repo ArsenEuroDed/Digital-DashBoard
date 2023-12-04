@@ -1,0 +1,87 @@
+int rpm = 0;//переменная тахометра
+int SPD = 0;//переменная спидометра
+int speed = 0;
+int speed_buff;//буффер
+int period = 1000000;
+int triggers = 0;
+unsigned long lastTimer;
+unsigned long lastflash2; //переменная последнего оборота тахометра
+unsigned long lastflash;
+#define CLK 4
+#define DIO 5
+#include "GyverTM1637.h"
+#include "LedControl.h"
+GyverTM1637 disp(CLK, DIO);
+LedControl lc1=LedControl(12,13,10,1); //DATAIN, CLK, LOAD и последний-кол-во матриц
+
+
+void setup() 
+{
+  lc1.shutdown(0,false);//вывести матрицу из спящего режима
+  Serial.begin(9600);
+  pinMode(2, INPUT_PULLUP);//пин спидометра
+  pinMode(3, INPUT_PULLUP);//пин тахометра
+  attachInterrupt(digitalPinToInterrupt(3), RPM, RISING);//считывание тахометра
+  attachInterrupt(digitalPinToInterrupt(2), sensSPD, RISING);//считывание спидометра
+  disp.clear();//очистить семисегментник
+  disp.brightness(7);//яркость семисегментника
+  lc1.setIntensity(0, 15);//адрес матрицы и её яркость 
+  lc1.setLed(0,7,7,true),
+  disp.displayByte(_t, _E, _S, _t);//выводит массив букв
+  delay(2000);
+} 
+
+void RPM()//обработка импульсов тахометра
+{
+  rpm=15/(float)(micros()-lastflash2);//расчёт оборотов тахометра
+  lastflash2=micros();//запомнить время последнего оборота
+} 
+
+void sensSPD()//обработка импульсов спидорметра 
+{ 
+  int gap = (micros()-(lastflash));
+      if (micros()<(lastTimer));
+  {
+    if (gap>1200)
+    {
+      triggers++;
+      speed_buff = (((1000000/gap)*3600)/6)/1000;
+      SPD = speed;
+      lastflash=micros();
+    }
+  }
+}
+void displayRPM()//логика работы отображения светодиодной шкалы
+{
+  byte currentBit = 0;
+  byte currentRow = 0;
+  byte bitToWrite = 0;
+  byte bits[8] = {0,1,0,0,1,1,0,1};
+  byte out = 0;
+  for (int i =100; i<=6400; i+=100)
+{
+  if (i<RPM) bitToWrite = 1;
+  else bitToWrite = 0;
+  if(currentBit<8)
+  {
+    bits[currentBit] = bitToWrite;
+    currentBit++;
+  }
+    else
+    {
+      for (int i = 0; i < 8; i++)
+      {
+        out += (bits[i] << (7-i));
+      }
+      lc1.setRow(0, currentRow, out);
+      currentRow++;
+      currentBit = 0;
+    }
+  }
+}
+
+void loop() 
+{
+  disp.displayInt(SPD);//вывод спидометра
+  displayRPM();//вывод тахометра
+}
